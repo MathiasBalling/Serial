@@ -5,8 +5,6 @@
 
 class Serial {
 private:
-  const char *m_port;
-  int m_baudrate;
   int m_delay;
   serialib m_serialconnection;
 

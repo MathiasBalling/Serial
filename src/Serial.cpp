@@ -1,16 +1,8 @@
 #include "Serial.h"
 
-Serial::Serial(const char *port, int baudrate, int delay)
-    : m_port(port), m_baudrate(baudrate), m_delay(delay) {
+Serial::Serial(const char *port, int baudrate, int delay) : m_delay(delay) {
   // Connection to serial port
-  char errorOpening = m_serialconnection.openDevice(port, baudrate);
-
-  if (errorOpening != 1) {
-    std::cout << "Error while opening port. Permission problem ?" << std::endl;
-  } else {
-    std::cout << "Successful connection to " << port << std::endl;
-  }
-  m_serialconnection.flushReceiver();
+  m_serialconnection.openDevice(port, baudrate);
 }
 
 int Serial::getSeral() {
@@ -24,4 +16,7 @@ int Serial::getSeral() {
   }
 }
 
-void Serial::closeSerial() { m_serialconnection.closeDevice(); }
+void Serial::closeSerial() {
+  m_serialconnection.flushReceiver();
+  m_serialconnection.closeDevice();
+}
