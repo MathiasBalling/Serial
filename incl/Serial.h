@@ -5,11 +5,10 @@
 
 class Serial {
 private:
-  int m_delay;
   serialib m_serialconnection;
 
 public:
-  Serial(const char *port, int baudrate, int delay);
+  Serial(const char *port, int baudrate);
   void closeSerial();
   int getSeral();
 };
