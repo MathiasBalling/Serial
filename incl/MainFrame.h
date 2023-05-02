@@ -28,7 +28,7 @@ private:
   int m_baudrate = 9600;
   bool m_DTR = true;
   bool m_RTS = true;
-  int m_delay = 1;
+  int m_delay = 100;
   int m_dataBits = 8;
   int m_stopBits = 1;
   int m_parity = 0;

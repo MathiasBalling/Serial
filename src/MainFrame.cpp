@@ -6,12 +6,12 @@
 
 // Header Files
 #include "MainFrame.h"
+#include "serialib.h"
 
 MainFrame::MainFrame(const wxString &title)
     : wxFrame(nullptr, wxID_ANY, title) {
 
   enum control_ids { ID_Timer = wxID_HIGHEST + 1, ID_Timer2 };
-
   makeUI();
   makeSettingsDialog();
 
@@ -49,8 +49,9 @@ void MainFrame::OnControlClicked(wxCommandEvent &event) {
 
 void MainFrame::onOpenClick(wxCommandEvent &event) {
   const char *seriallocation = m_seriallocation.data();
-  atmega = new Serial(seriallocation, m_baudrate);
-  timer->Start(1);
+  atmega =
+      new Serial(seriallocation, m_baudrate, m_dataBits, m_parity, m_stopBits);
+  timer->Start(m_delay);
   openButton->Enable(false);
   closeButton->Enable(true);
 }
