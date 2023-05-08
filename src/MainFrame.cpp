@@ -9,6 +9,8 @@
 #include "MainFrame.h"
 #include "serialib.h"
 
+enum SendType { BINARY, HEX, DECIMAL, ASCII };
+
 MainFrame::MainFrame(const wxString &title)
     : wxFrame(nullptr, wxID_ANY, title) {
 
@@ -20,40 +22,39 @@ MainFrame::MainFrame(const wxString &title)
   Bind(wxEVT_TIMER, &MainFrame::findSerialPorts, this, ID_timer);
   timer->Start(1000);
 
-  m_worker = std::thread(&MainFrame::updateSerial, this);
+  m_worker = std::thread(&MainFrame::updateText, this);
 }
 
-void MainFrame::updateSerial() {
+void MainFrame::updateText() {
   while (1) {
     if (isSerialOpen) {
-      updateText();
+      int serialout = m_serial->getSeral();
+      if (serialout == -1) {
+        isSerialOpen = false;
+        wxCommandEvent event;
+        onCloseClick(event);
+        std::cout << "Serial failed!" << std::endl;
+        return;
+      }
+      // How to Convert decial to binary
+      int binary = 0;
+      for (int i = 0; i < 8; i++) {
+        if (serialout & (1 << i)) {
+          binary += 1 * pow(10, i);
+        }
+      }
+
+      CallAfter([this, serialout, binary]() {
+        historyCtrl->AppendText(wxString::Format("%02x ", serialout));
+        decimalText->SetLabel(wxString::Format("%03d", serialout));
+        hexText->SetLabel(wxString::Format("0x%02x", serialout));
+        binaryText->SetLabel(wxString::Format("0b%08d", binary));
+        this->Layout();
+      });
     } else {
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
   }
-}
-
-void MainFrame::updateText() {
-  int serialout = atmega->getSeral();
-  std::cout << serialout << std::endl;
-  if (serialout == -1) {
-    isSerialOpen = false;
-    wxCommandEvent event;
-    onCloseClick(event);
-    std::cout << "Serial failed!" << std::endl;
-    return;
-  }
-  decimalText->SetLabel(wxString::Format("%03d", serialout));
-  hexText->SetLabel(wxString::Format("0x%02x", serialout));
-  // How to Convert decial to binary
-  int binary = 0;
-  for (int i = 0; i < 8; i++) {
-    if (serialout & (1 << i)) {
-      binary += 1 * pow(10, i);
-    }
-  }
-
-  binaryText->SetLabel(wxString::Format("0b%08d", binary));
 }
 
 void MainFrame::OnControlClicked(wxCommandEvent &event) {
@@ -62,7 +63,7 @@ void MainFrame::OnControlClicked(wxCommandEvent &event) {
 
 void MainFrame::onOpenClick(wxCommandEvent &event) {
   const char *seriallocation = m_seriallocation.data();
-  atmega =
+  m_serial =
       new Serial(seriallocation, m_baudrate, m_dataBits, m_parity, m_stopBits);
   isSerialOpen = true;
   openButton->Enable(false);
@@ -73,8 +74,8 @@ void MainFrame::onCloseClick(wxCommandEvent &event) {
   isSerialOpen = false;
   openButton->Enable(true);
   closeButton->Enable(false);
-  atmega->closeSerial();
-  delete atmega;
+  m_serial->closeSerial();
+  delete m_serial;
 }
 
 void MainFrame::findSerialPorts(wxTimerEvent &event) {
@@ -124,22 +125,96 @@ void MainFrame::makeUI() {
   wxPanel *panel = new wxPanel(this, wxID_ANY);
   panel->SetBackgroundColour(wxColor(0, 0, 0));
   decimalText = new wxStaticText(panel, wxID_ANY, "000", wxDefaultPosition,
-                                 wxDefaultSize, wxALIGN_RIGHT);
-  decimalText->SetFont(wxFont(50, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
+                                 wxDefaultSize, wxALIGN_CENTRE);
+  decimalText->SetFont(wxFont(20, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
                               wxFONTWEIGHT_BOLD, false, "Arial"));
   binaryText =
-      new wxStaticText(panel, wxID_ANY, "0b00000000", wxDefaultPosition);
-  binaryText->SetFont(wxFont(50, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
+      new wxStaticText(panel, wxID_ANY, "0b00000000", wxDefaultPosition,
+                       wxDefaultSize, wxALIGN_CENTRE);
+  binaryText->SetFont(wxFont(20, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
                              wxFONTWEIGHT_BOLD, false, "Arial"));
-  hexText = new wxStaticText(panel, wxID_ANY, "0x00", wxDefaultPosition);
-  hexText->SetFont(wxFont(50, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
+  hexText = new wxStaticText(panel, wxID_ANY, "0x00", wxDefaultPosition,
+                             wxDefaultSize, wxALIGN_CENTRE);
+  hexText->SetFont(wxFont(20, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
                           wxFONTWEIGHT_BOLD, false, "Arial"));
+  historyCtrl = new wxTextCtrl(
+      panel, wxID_ANY, "", wxDefaultPosition, wxSize(500, 200),
+      wxTE_MULTILINE | wxTE_READONLY | wxTE_NO_VSCROLL | wxBORDER_NONE);
+  historyCtrl->SetBackgroundColour(wxColor(0, 0, 0));
+  historyCtrl->SetFont(wxFont(15, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
+                              wxFONTWEIGHT_NORMAL, false, "Arial"));
 
-  wxBoxSizer *outputSizer = new wxBoxSizer(wxVERTICAL);
-  outputSizer->Add(decimalText, 1, wxALIGN_CENTER | wxALL, 10);
-  outputSizer->Add(hexText, 1, wxALIGN_CENTER | wxALL, 10);
-  outputSizer->Add(binaryText, 1, wxALIGN_CENTER | wxALL, 10);
-  panel->SetSizerAndFit(outputSizer);
+  wxBoxSizer *outputSizerHor = new wxBoxSizer(wxHORIZONTAL);
+  outputSizerHor->AddSpacer(10);
+  outputSizerHor->Add(decimalText, 1);
+  outputSizerHor->AddSpacer(10);
+  outputSizerHor->Add(hexText, 1);
+  outputSizerHor->AddSpacer(10);
+  outputSizerHor->Add(binaryText, 1);
+  outputSizerHor->AddSpacer(10);
+
+  wxChoice *sendchoices = new wxChoice(panel, wxID_ANY);
+  wxArrayString choices;
+  choices.Add("Binary");
+  choices.Add("Hex");
+  choices.Add("Decimal");
+  choices.Add("ASCII");
+  sendchoices->Set(choices);
+  sendchoices->SetSelection(1);
+  sendchoices->Bind(wxEVT_CHOICE, [this](wxCommandEvent &event) {
+    switch (event.GetSelection()) {
+    case 0:
+      m_sendType = SendType::BINARY;
+      break;
+    case 1:
+      m_sendType = SendType::HEX;
+      break;
+    case 2:
+      m_sendType = SendType::DECIMAL;
+      break;
+    case 3:
+      m_sendType = SendType::ASCII;
+      break;
+    }
+    std::cout << "Send Type: " << (int)m_sendType << std::endl;
+  });
+  wxTextCtrl *sendText = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition,
+                                        wxDefaultSize, wxTE_PROCESS_ENTER);
+  sendText->Bind(wxEVT_TEXT_ENTER, [this, sendText](wxCommandEvent &event) {
+    std::cout << "Send Text: " << event.GetString() << std::endl;
+    sendText->Clear();
+
+    // std::string text = event.GetString();
+    // switch (m_sendType) {
+    // case SendType::BINARY:
+    //   text = std::to_string(std::stoi(text, nullptr, 2));
+    //   break;
+    // case SendType::HEX:
+    //   text = std::to_string(std::stoi(text, nullptr, 16));
+    //   break;
+    // case SendType::DECIMAL:
+    //   break;
+    // case SendType::ASCII:
+    //   break;
+    // }
+    // m_serial->write(text);
+  });
+  wxBoxSizer *textinputSizer = new wxBoxSizer(wxHORIZONTAL);
+  textinputSizer->AddSpacer(10);
+  textinputSizer->Add(sendchoices, 0, wxALIGN_CENTER_VERTICAL);
+  textinputSizer->AddSpacer(10);
+  textinputSizer->Add(sendText, 1, wxEXPAND);
+  textinputSizer->AddSpacer(10);
+
+  wxBoxSizer *outputSizerVer = new wxBoxSizer(wxVERTICAL);
+  outputSizerVer->AddSpacer(10);
+  outputSizerVer->Add(outputSizerHor, 0, wxEXPAND);
+  outputSizerVer->AddSpacer(10);
+  outputSizerVer->Add(historyCtrl, 1, wxEXPAND);
+  outputSizerVer->AddSpacer(10);
+  outputSizerVer->Add(textinputSizer, 0, wxEXPAND);
+  outputSizerVer->AddSpacer(10);
+  panel->SetSizerAndFit(outputSizerVer);
 
   wxPanel *inputs = new wxPanel(this, wxID_ANY);
   inputs->SetBackgroundColour(wxColor(20, 20, 20));
