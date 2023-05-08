@@ -10,9 +10,12 @@ if(wxWidgets_USE_FILE) # not defined in CONFIG mode
 endif()
 
 include_directories(incl)
+include_directories(external)
 file(GLOB_RECURSE SRC_FILES
     src/*.cpp
     incl/*.h
+    external/*.cpp
+    external/*.h
 )
 
 add_executable(Serial 
