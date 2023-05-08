@@ -7,16 +7,16 @@ Serial::Serial(const char *port, int baudrate, int databits, int parity,
   m_serialconnection.openDevice(
       port, baudrate, static_cast<SerialDataBits>(databits),
       static_cast<SerialParity>(parity), static_cast<SerialStopBits>(stopbits));
+  m_serialconnection.flushReceiver();
 }
 
 int Serial::getSeral() {
   if (!m_serialconnection.isDeviceOpen()) {
     return -1;
   } else {
-    uint8_t buffer[64];
+    uint8_t buffer[1];
     // Read the string
-    std::cout << m_serialconnection. << std::endl;
-    m_serialconnection.readBytes(buffer, 64);
+    m_serialconnection.readBytes(buffer, 1);
     return buffer[0];
   }
 }

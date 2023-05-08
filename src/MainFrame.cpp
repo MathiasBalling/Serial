@@ -1,5 +1,6 @@
 // wxWidgets "Hello World" Program
 
+#include <chrono>
 #include <iostream>
 #include <vector>
 #include <wx/wx.h>
@@ -11,20 +12,32 @@
 MainFrame::MainFrame(const wxString &title)
     : wxFrame(nullptr, wxID_ANY, title) {
 
-  enum control_ids { ID_Timer = wxID_HIGHEST + 1, ID_Timer2 };
+  enum control_ids { ID_timer = wxID_HIGHEST + 1 };
   makeUI();
   makeSettingsDialog();
 
-  timer = new wxTimer(this, ID_Timer);
-  Bind(wxEVT_TIMER, &MainFrame::updateText, this, ID_Timer);
-  auto timer2 = new wxTimer(this, ID_Timer2);
-  Bind(wxEVT_TIMER, &MainFrame::findSerialPorts, this, ID_Timer2);
-  timer2->Start(1000);
+  auto timer = new wxTimer(this, ID_timer);
+  Bind(wxEVT_TIMER, &MainFrame::findSerialPorts, this, ID_timer);
+  timer->Start(1000);
+
+  m_worker = std::thread(&MainFrame::updateSerial, this);
 }
 
-void MainFrame::updateText(wxTimerEvent &event) {
+void MainFrame::updateSerial() {
+  while (1) {
+    if (isSerialOpen) {
+      updateText();
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+  }
+}
+
+void MainFrame::updateText() {
   int serialout = atmega->getSeral();
+  std::cout << serialout << std::endl;
   if (serialout == -1) {
+    isSerialOpen = false;
     wxCommandEvent event;
     onCloseClick(event);
     std::cout << "Serial failed!" << std::endl;
@@ -51,17 +64,17 @@ void MainFrame::onOpenClick(wxCommandEvent &event) {
   const char *seriallocation = m_seriallocation.data();
   atmega =
       new Serial(seriallocation, m_baudrate, m_dataBits, m_parity, m_stopBits);
-  timer->Start(m_delay);
+  isSerialOpen = true;
   openButton->Enable(false);
   closeButton->Enable(true);
 }
 
 void MainFrame::onCloseClick(wxCommandEvent &event) {
+  isSerialOpen = false;
   openButton->Enable(true);
   closeButton->Enable(false);
   atmega->closeSerial();
   delete atmega;
-  timer->Stop();
 }
 
 void MainFrame::findSerialPorts(wxTimerEvent &event) {
