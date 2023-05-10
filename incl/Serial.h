@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 #include <string>
 
 #include "serialib.h"
@@ -12,4 +13,5 @@ public:
          int stopbits);
   void closeSerial();
   int getSeral();
+  void sendSerial(uint8_t data);
 };

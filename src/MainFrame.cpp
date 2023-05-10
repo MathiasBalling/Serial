@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <string>
 #include <vector>
 #include <wx/wx.h>
 
@@ -13,7 +14,6 @@ enum SendType { BINARY, HEX, DECIMAL, ASCII };
 
 MainFrame::MainFrame(const wxString &title)
     : wxFrame(nullptr, wxID_ANY, title) {
-
   enum control_ids { ID_timer = wxID_HIGHEST + 1 };
   makeUI();
   makeSettingsDialog();
@@ -36,7 +36,9 @@ void MainFrame::updateText() {
         std::cout << "Serial failed!" << std::endl;
         return;
       }
-      // How to Convert decial to binary
+      if (!isSerialOpen)
+        return;
+      // Convert decial to binary
       int binary = 0;
       for (int i = 0; i < 8; i++) {
         if (serialout & (1 << i)) {
@@ -66,6 +68,7 @@ void MainFrame::onOpenClick(wxCommandEvent &event) {
   m_serial =
       new Serial(seriallocation, m_baudrate, m_dataBits, m_parity, m_stopBits);
   isSerialOpen = true;
+  historyCtrl->Clear();
   openButton->Enable(false);
   closeButton->Enable(true);
 }
@@ -79,6 +82,8 @@ void MainFrame::onCloseClick(wxCommandEvent &event) {
 }
 
 void MainFrame::findSerialPorts(wxTimerEvent &event) {
+  if (m_costumPath || isSerialOpen)
+    return;
   std::string path = "/dev/";
   m_ports.clear();
   for (const auto &entry : std::filesystem::directory_iterator(path))
@@ -153,6 +158,49 @@ void MainFrame::makeUI() {
   outputSizerHor->Add(binaryText, 1);
   outputSizerHor->AddSpacer(10);
 
+  wxTextCtrl *m_sendText =
+      new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxDefaultSize,
+                     wxTE_PROCESS_ENTER);
+  m_sendText->SetValidator(wxTextValidator(wxFILTER_XDIGITS));
+  m_sendText->Bind(wxEVT_TEXT_ENTER, [this, m_sendText](wxCommandEvent &event) {
+    if (!isSerialOpen)
+      return;
+    std::string text = event.GetString().ToStdString();
+    int val;
+    switch (m_sendType) {
+    case SendType::BINARY:
+      val = std::stoi(text, nullptr, 2);
+      while (val > 255) {
+        m_serial->sendSerial(255);
+        val /= 256;
+      }
+      m_serial->sendSerial(val);
+      break;
+    case SendType::HEX:
+      for (int i = 0; i < text.length(); i += 2) {
+        std::string sub = text.substr(i, 2);
+        val = std::stoi(sub, nullptr, 16);
+        m_serial->sendSerial(val);
+      }
+      break;
+    case SendType::DECIMAL:
+      val = std::stoi(text, nullptr, 10);
+      while (val > 255) {
+        m_serial->sendSerial(255);
+        val /= 256;
+      }
+      m_serial->sendSerial(val);
+      break;
+    case SendType::ASCII:
+      for (auto i : text) {
+        val = int(i);
+        m_serial->sendSerial(val);
+      }
+      break;
+    }
+    m_sendText->Clear();
+  });
+
   wxChoice *sendchoices = new wxChoice(panel, wxID_ANY);
   wxArrayString choices;
   choices.Add("Binary");
@@ -160,50 +208,38 @@ void MainFrame::makeUI() {
   choices.Add("Decimal");
   choices.Add("ASCII");
   sendchoices->Set(choices);
-  sendchoices->SetSelection(1);
-  sendchoices->Bind(wxEVT_CHOICE, [this](wxCommandEvent &event) {
-    switch (event.GetSelection()) {
-    case 0:
-      m_sendType = SendType::BINARY;
-      break;
-    case 1:
-      m_sendType = SendType::HEX;
-      break;
-    case 2:
-      m_sendType = SendType::DECIMAL;
-      break;
-    case 3:
-      m_sendType = SendType::ASCII;
-      break;
-    }
-    std::cout << "Send Type: " << (int)m_sendType << std::endl;
-  });
-  wxTextCtrl *sendText = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition,
-                                        wxDefaultSize, wxTE_PROCESS_ENTER);
-  sendText->Bind(wxEVT_TEXT_ENTER, [this, sendText](wxCommandEvent &event) {
-    std::cout << "Send Text: " << event.GetString() << std::endl;
-    sendText->Clear();
+  sendchoices->SetSelection(SendType::HEX);
+  m_sendType = SendType::HEX;
+  wxTextValidator validator(wxFILTER_NONE);
+  validator.SetStyle(wxFILTER_INCLUDE_CHAR_LIST);
+  validator.SetCharIncludes("01");
+  sendchoices->Bind(
+      wxEVT_CHOICE, [this, m_sendText, validator](wxCommandEvent &event) {
+        switch (event.GetSelection()) {
+        case 0:
+          m_sendType = SendType::BINARY;
+          m_sendText->SetValidator(validator);
+          break;
+        case 1:
+          m_sendType = SendType::HEX;
+          m_sendText->SetValidator(wxTextValidator(wxFILTER_XDIGITS));
+          break;
+        case 2:
+          m_sendType = SendType::DECIMAL;
+          m_sendText->SetValidator(wxTextValidator(wxFILTER_DIGITS));
+          break;
+        case 3:
+          m_sendType = SendType::ASCII;
+          m_sendText->SetValidator(wxTextValidator(wxFILTER_ASCII));
+          break;
+        }
+      });
 
-    // std::string text = event.GetString();
-    // switch (m_sendType) {
-    // case SendType::BINARY:
-    //   text = std::to_string(std::stoi(text, nullptr, 2));
-    //   break;
-    // case SendType::HEX:
-    //   text = std::to_string(std::stoi(text, nullptr, 16));
-    //   break;
-    // case SendType::DECIMAL:
-    //   break;
-    // case SendType::ASCII:
-    //   break;
-    // }
-    // m_serial->write(text);
-  });
   wxBoxSizer *textinputSizer = new wxBoxSizer(wxHORIZONTAL);
   textinputSizer->AddSpacer(10);
   textinputSizer->Add(sendchoices, 0, wxALIGN_CENTER_VERTICAL);
   textinputSizer->AddSpacer(10);
-  textinputSizer->Add(sendText, 1, wxEXPAND);
+  textinputSizer->Add(m_sendText, 1, wxEXPAND);
   textinputSizer->AddSpacer(10);
 
   wxBoxSizer *outputSizerVer = new wxBoxSizer(wxVERTICAL);
@@ -248,10 +284,12 @@ void MainFrame::makeSettingsDialog() {
 
   wxCheckBox *RTSLabel = new wxCheckBox(settingsDialog, wxID_ANY, "RTS");
   RTSLabel->SetValue(m_RTS);
+  RTSLabel->Enable(false);
   RTSLabel->Bind(wxEVT_CHECKBOX,
                  [this](wxCommandEvent &event) { m_RTS = event.IsChecked(); });
   wxCheckBox *DTRLabel = new wxCheckBox(settingsDialog, wxID_ANY, "DTR");
   DTRLabel->SetValue(m_DTR);
+  DTRLabel->Enable(false);
   DTRLabel->Bind(wxEVT_CHECKBOX,
                  [this](wxCommandEvent &event) { m_DTR = event.IsChecked(); });
 
@@ -284,12 +322,47 @@ void MainFrame::makeSettingsDialog() {
       new wxStaticText(settingsDialog, wxID_ANY, "Baud Rate:");
   baudRateLabel->SetFont(wxFont(15, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL,
                                 wxFONTWEIGHT_BOLD, false, "Arial"));
-  wxTextCtrl *baudRateText =
-      new wxTextCtrl(settingsDialog, wxID_ANY, std::to_string(m_baudrate));
-  baudRateText->SetValidator(wxTextValidator(wxFILTER_DIGITS));
-  baudRateText->Bind(wxEVT_TEXT, [this](wxCommandEvent &event) {
-    m_baudrate = wxAtoi(event.GetString());
+#if defined(_WIN32) || defined(_WIN64)
+  wxArrayString bauds;
+  bauds.Add("110");
+  bauds.Add("300");
+  bauds.Add("600");
+  bauds.Add("1200");
+  bauds.Add("2400");
+  bauds.Add("4800");
+  bauds.Add("9600");
+  bauds.Add("14400");
+  bauds.Add("19200");
+  bauds.Add("38400");
+  bauds.Add("56000");
+  bauds.Add("57600");
+  bauds.Add("115200");
+  bauds.Add("128000");
+  bauds.Add("256000");
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+  wxArrayString bauds;
+  bauds.Add("110");
+  bauds.Add("300");
+  bauds.Add("600");
+  bauds.Add("1200");
+  bauds.Add("2400");
+  bauds.Add("4800");
+  bauds.Add("9600");
+  bauds.Add("19200");
+  bauds.Add("38400");
+  bauds.Add("57600");
+  bauds.Add("115200");
+  bauds.Add("230400");
+#endif
+  wxChoice *baudRateChoice = new wxChoice(settingsDialog, wxID_ANY);
+  baudRateChoice->Set(bauds);
+  baudRateChoice->SetSelection(5);
+  baudRateChoice->Bind(wxEVT_CHOICE, [this](wxCommandEvent &event) {
+    m_baudrate = std::stoi(event.GetString().ToStdString());
   });
+  m_baudrate = 4800;
 
   wxStaticText *dataBitsLabel =
       new wxStaticText(settingsDialog, wxID_ANY, "Data Bits:");
@@ -353,7 +426,7 @@ void MainFrame::makeSettingsDialog() {
 
   wxBoxSizer *baudRateSizer = new wxBoxSizer(wxHORIZONTAL);
   baudRateSizer->Add(baudRateLabel, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 10);
-  baudRateSizer->Add(baudRateText, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 10);
+  baudRateSizer->Add(baudRateChoice, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 10);
   baudRateSizer->AddSpacer(10);
 
   wxBoxSizer *dataBitsSizer = new wxBoxSizer(wxHORIZONTAL);

@@ -22,6 +22,11 @@ int Serial::getSeral() {
 }
 
 void Serial::closeSerial() {
-  m_serialconnection.flushReceiver();
+  // m_serialconnection.flushReceiver();
   m_serialconnection.closeDevice();
+}
+
+void Serial::sendSerial(uint8_t data) {
+  uint8_t val[1] = {data};
+  m_serialconnection.writeBytes(val, 1);
 }

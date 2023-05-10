@@ -13,6 +13,7 @@ public:
 private:
   Serial *m_serial;
   int m_sendType;
+  wxTextCtrl *m_sendText;
   bool isSerialOpen = false;
   std::thread m_worker;
   std::vector<std::string> m_ports;
