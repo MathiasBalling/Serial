@@ -13,6 +13,7 @@ Serial::Serial(const char *port, int baudrate, int databits, int parity,
 int Serial::getSeral() {
   if (!m_serialconnection.isDeviceOpen()) {
     return -1;
+    
   } else {
     uint8_t buffer[1];
     // Read the string
