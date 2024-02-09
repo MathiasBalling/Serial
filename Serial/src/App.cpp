@@ -1,6 +1,5 @@
 #include "App.h"
 #include "MainFrame.h"
-#include <iostream>
 #include <wx/wx.h>
 
 wxIMPLEMENT_APP(App);
