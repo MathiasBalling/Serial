@@ -1,13 +1,13 @@
 // wxWidgets "Hello World" Program
 
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <vector>
 #include <wx/wx.h>
 
 // Header Files
 #include "MainFrame.h"
-#include "serialib.h"
 
 enum SendType { BINARY, HEX, DECIMAL, ASCII };
 
@@ -36,7 +36,7 @@ void MainFrame::updateText() {
         std::cout << "Serial failed!" << std::endl;
         return;
       }
-      // How to Convert decial to binary
+      // Convert decial to binary
       int binary = 0;
       for (int i = 0; i < 8; i++) {
         if (serialout & (1 << i)) {
@@ -176,28 +176,26 @@ void MainFrame::makeUI() {
       m_sendType = SendType::ASCII;
       break;
     }
-    std::cout << "Send Type: " << (int)m_sendType << std::endl;
   });
   wxTextCtrl *sendText = new wxTextCtrl(panel, wxID_ANY, "", wxDefaultPosition,
                                         wxDefaultSize, wxTE_PROCESS_ENTER);
   sendText->Bind(wxEVT_TEXT_ENTER, [this, sendText](wxCommandEvent &event) {
-    std::cout << "Send Text: " << event.GetString() << std::endl;
     sendText->Clear();
+    std::string text = event.GetString().ToStdString();
 
-    // std::string text = event.GetString();
-    // switch (m_sendType) {
-    // case SendType::BINARY:
-    //   text = std::to_string(std::stoi(text, nullptr, 2));
-    //   break;
-    // case SendType::HEX:
-    //   text = std::to_string(std::stoi(text, nullptr, 16));
-    //   break;
-    // case SendType::DECIMAL:
-    //   break;
-    // case SendType::ASCII:
-    //   break;
-    // }
-    // m_serial->write(text);
+    switch (m_sendType) {
+    case SendType::BINARY:
+      text = std::to_string(std::stoi(text, nullptr, 2));
+      break;
+    case SendType::HEX:
+      text = std::to_string(std::stoi(text, nullptr, 16));
+      break;
+    case SendType::DECIMAL:
+      break;
+    case SendType::ASCII:
+      break;
+    }
+    m_serial->write(text);
   });
   wxBoxSizer *textinputSizer = new wxBoxSizer(wxHORIZONTAL);
   textinputSizer->AddSpacer(10);
@@ -315,8 +313,8 @@ void MainFrame::makeSettingsDialog() {
   wxChoice *parityChoice = new wxChoice(settingsDialog, wxID_ANY);
   choices.Clear();
   choices.Add("None");
-  choices.Add("Odd");
   choices.Add("Even");
+  choices.Add("Odd");
   choices.Add("Mark");
   choices.Add("Space");
   parityChoice->Set(choices);

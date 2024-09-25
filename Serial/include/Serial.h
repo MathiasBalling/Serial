@@ -1,5 +1,4 @@
 #pragma once
-#include <string>
 
 #include "serialib.h"
 
@@ -11,5 +10,6 @@ public:
   Serial(const char *port, int baudrate, int databits, int parity,
          int stopbits);
   void closeSerial();
-  int getSeral();
+  uint8_t getSeral();
+  void write(std::string data);
 };

@@ -1,7 +1,5 @@
 #pragma once
-#include "App.h"
 #include "Serial.h"
-#include <filesystem>
 #include <string>
 #include <thread>
 #include <wx/wx.h>
@@ -48,3 +46,15 @@ private:
   void makeUI();
   void makeSettingsDialog();
 };
+
+class App : public wxApp {
+public:
+  bool OnInit() {
+    MainFrame *mainFrame = new MainFrame("Serial Monitor");
+    mainFrame->Center();
+    mainFrame->Show();
+    return true;
+  };
+};
+
+wxIMPLEMENT_APP(App);

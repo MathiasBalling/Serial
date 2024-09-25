@@ -1,5 +1,6 @@
 #include "Serial.h"
-#include "serialib.h"
+#include <fmt/core.h>
+#include <serialib.h>
 
 Serial::Serial(const char *port, int baudrate, int databits, int parity,
                int stopbits) {
@@ -7,13 +8,14 @@ Serial::Serial(const char *port, int baudrate, int databits, int parity,
   m_serialconnection.openDevice(
       port, baudrate, static_cast<SerialDataBits>(databits),
       static_cast<SerialParity>(parity), static_cast<SerialStopBits>(stopbits));
-  m_serialconnection.flushReceiver();
 }
 
-int Serial::getSeral() {
+uint8_t Serial::getSeral() {
   if (!m_serialconnection.isDeviceOpen()) {
     return -1;
   } else {
+    int avl = m_serialconnection.available();
+    fmt::print("Available: {}\n", avl);
     uint8_t buffer[1];
     // Read the string
     m_serialconnection.readBytes(buffer, 1);
@@ -24,4 +26,8 @@ int Serial::getSeral() {
 void Serial::closeSerial() {
   m_serialconnection.flushReceiver();
   m_serialconnection.closeDevice();
+}
+
+void Serial::write(std::string data) {
+  m_serialconnection.writeString(data.c_str());
 }
